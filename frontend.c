@@ -20,7 +20,7 @@ int main(int argc, char *argv[]) {
 	char *rom_filename = NULL;
 	for (int i = 1; i < argc; ++i) {
 		if (argv[i][0] == '-' && argv[i][1] != '\0' && !flag_done) {
-			if (argv[i][1] == '-' && argv[i][2] == '\0') flag_done = 1; // -- denotes end of flags (and -o)
+			if (argv[i][1] == '-' && argv[i][2] == '\0') flag_done = 1; // -- denotes end of flags
 			else INVALID
 		} else {
 			if (rom_filename) INVALID
