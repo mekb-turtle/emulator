@@ -5,12 +5,12 @@
 #include <errno.h>
 #include <string.h>
 #include "./core.h"
+#define eprintf(...) fprintf(stderr, __VA_ARGS__)
 #define strerr strerror(errno)
-#define ERROR(...) fprintf(stderr, ##__VA_ARGS__)
 #define BLOCK 1024
 struct game *game;
 int usage(char *argv0) {
-	fprintf(stderr, "\
+	eprintf("\
 Usage: %s [rom]\n", argv0);
 	return 2;
 }
@@ -33,25 +33,25 @@ int main(int argc, char *argv[]) {
 		rom_f = stdin;
 	} else {
 		rom_f = fopen(rom_filename, "r");
-		if (!rom_f) { ERROR("fopen: %s: %s\n", rom_filename, strerr); return errno; }
+		if (!rom_f) { fprintf("fopen: %s: %s\n", rom_filename, strerr); return errno; }
 	}
 	uint8_t* rom = NULL;
 	size_t len = 0;
 	while (1) {
 		if (feof(rom_f)) break;
 		if (ferror(rom_f)) {
-			ERROR("ferror\n");
+			fprintf("ferror\n");
 			return 1;
 		}
 		rom = realloc(rom, len + BLOCK);
 		len += fread(rom + len, 1, BLOCK, rom_f);
 	}
 	if (len == 0) {
-		ERROR("File is empty");
+		fprintf("File is empty");
 		return 2;
 	}
 	if (len > UINT32_MAX) {
-		ERROR("File is too big");
+		fprintf("File is too big");
 		return 2;
 	}
 	game = new_game(rom, len);
