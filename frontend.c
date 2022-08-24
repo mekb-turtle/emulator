@@ -33,25 +33,25 @@ int main(int argc, char *argv[]) {
 		rom_f = stdin;
 	} else {
 		rom_f = fopen(rom_filename, "r");
-		if (!rom_f) { fprintf("fopen: %s: %s\n", rom_filename, strerr); return errno; }
+		if (!rom_f) { eprintf("fopen: %s: %s\n", rom_filename, strerr); return errno; }
 	}
 	uint8_t* rom = NULL;
 	size_t len = 0;
 	while (1) {
 		if (feof(rom_f)) break;
 		if (ferror(rom_f)) {
-			fprintf("ferror\n");
+			eprintf("ferror\n");
 			return 1;
 		}
 		rom = realloc(rom, len + BLOCK);
 		len += fread(rom + len, 1, BLOCK, rom_f);
 	}
 	if (len == 0) {
-		fprintf("File is empty");
+		eprintf("File is empty");
 		return 2;
 	}
 	if (len > UINT32_MAX) {
-		fprintf("File is too big");
+		eprintf("File is too big");
 		return 2;
 	}
 	game = new_game(rom, len);

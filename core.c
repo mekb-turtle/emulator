@@ -1,101 +1,156 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include "./core.h"
-void reset_registers(struct registers *reg) {
-	reg->reg0 = reg->reg1 = reg->reg2 = reg->reg3 = \
-	reg->reg4 = reg->reg5 = reg->reg6 = reg->reg7 = 0;
+void reset_registers(struct game *game) {
+	for (uint8_t i = 0; i < REGISTERS_SIZE; ++i) game->registers[i] = 0;
 }
-uint8_t *get_register(struct game *g, uint8_t reg) {
-	switch (reg & 7) {
-		case 0: return &(g->registers->reg0);
-		case 1: return &(g->registers->reg1);
-		case 2: return &(g->registers->reg2);
-		case 3: return &(g->registers->reg3);
-		case 4: return &(g->registers->reg4);
-		case 5: return &(g->registers->reg5);
-		case 6: return &(g->registers->reg6);
-		case 7: return &(g->registers->reg7);
-		default: return NULL;
-	}
+uint8_t *get_register(struct game *game, uint8_t reg) {
+	return &(game->registers[reg & 7]);
 }
 struct game *new_game(uint8_t *rom, uint32_t rom_length) {
 	if (rom_length == 0) return NULL;
 	if (!rom) return NULL;
-	struct game *g;
-	g = calloc(1, sizeof(struct game));
-	g->rom = rom;
-	g->rom_length = rom_length;
-	g->rom_index = 0;
-	g->registers = calloc(1, sizeof(struct registers));
-	reset_registers(g->registers);
-	g->memory = calloc(1, RAM_SIZE);
-	g->halt = 0;
-	return g;
+	struct game *game;
+	game = calloc(1, sizeof(struct game));
+	if (!game) return NULL;
+	game->rom = rom;
+	game->rom_length = rom_length;
+	game->rom_index = 0;
+	game->stack_index = 0;
+	reset_registers(game);
+	game->flags = 0;
+	return game;
 }
-uint8_t rom_next(struct game *g) {
-	++g->rom_index;
-	if (g->rom_index == g->rom_length - 1) {
-		return g->halt = 1;
-	}
+void dispose_game(struct game *game) {
+	if (!game) return;
+	free(game);
+}
+uint8_t rom_jump_without_stack(struct game *game, uint32_t index) {
+	if (index >= game->rom_length) { game->flags |= FLAG_HALT; return 1; }
+	game->rom_index = index;
 	return 0;
 }
-uint8_t rom_get(struct game *g) {
-	return g->rom[g->rom_index];
-}
-uint8_t step(struct game *g) {
-	if (g->halt) return 1;
-	uint8_t *reg1;
-	uint8_t *reg2;
-	uint8_t *reg3;
-	uint16_t mem;
-	uint8_t instr = rom_get(g);
-	switch (instr) {
-		case 0x00: // noop
-			break;
-		case 0x01: // next frame
-			rom_next(g);
-			return 1;
-		case 0x02: // copy byte from register to memory
-		case 0x03: // copy byte from memory to register
-			if (rom_next(g)) return 1;
-			reg1 = get_register(g, rom_get(g));
-			if (rom_next(g)) return 1;
-			mem = ((uint16_t)rom_get(g)) << 8;
-			if (rom_next(g)) return 1;
-			mem |= rom_get(g);
-			if (instr == 0x02)
-				g->memory[mem] = *reg1;
-			else
-				*reg1 = g->memory[mem];
-		case 0x10: // addition
-		case 0x11: // subtraction
-		case 0x12: // multiplication
-		case 0x13: // division
-		case 0x14: // modulo
-			if (rom_next(g)) return 1;
-			reg1 = get_register(g, rom_get(g));
-			if (rom_next(g)) return 1;
-			reg2 = get_register(g, rom_get(g));
-			if (rom_next(g)) return 1;
-			reg3 = get_register(g, rom_get(g));
-			if (instr == 0x10) *reg3 = *reg1 + *reg2;
-			if (instr == 0x11) *reg3 = *reg1 - *reg2;
-			if (instr == 0x12) *reg3 = *reg1 * *reg2;
-			if (instr == 0x13) *reg3 = *reg1 / *reg2;
-			if (instr == 0x14) *reg3 = *reg1 % *reg2;
-			break;
-		case 0xff: // halt
-			g->halt = 1;
-			return 1;
-		default:
-			g->halt = 1;
-			return 2;
-	}
-	rom_next(g);
+uint8_t rom_jump_push(struct game *game, uint32_t index) {
+	if (game->stack_index >= STACK_SIZE) { game->flags |= FLAG_HALT; return 1; }
+	game->stack[game->stack_index++] = game->rom_index;
+	game->rom_index = index;
 	return 0;
 }
-uint8_t frame(struct game *g) {
+uint8_t rom_jump_pop(struct game *game) {
+	if (game->stack_index <= 0) { game->flags |= FLAG_HALT; return 1; }
+	game->rom_index = game->stack[--game->stack_index];
+	return 0;
+}
+uint8_t rom_next(struct game *game) {
+	if (game->rom_index >= game->rom_length) { game->flags |= FLAG_HALT; return 1; }
+	return rom_jump_without_stack(game, game->rom_index + 1);
+}
+uint8_t rom_get(struct game *game) {
+	return game->rom[game->rom_index];
+}
+uint8_t step(struct game *game) {
+	if (game->flags & FLAG_HALT) return STATUS_HALTED;
+	uint8_t *reg1 = NULL;
+	uint8_t *reg2 = NULL;
+	uint8_t *reg3 = NULL;
+	uint16_t mem = 0;
+	uint8_t byte = 0;
+	uint8_t instr = rom_get(game);
+	if (game->flags & FLAG_IGNORING) {
+		if (instr == OP_UNIGNORE) game->flags &= ~FLAG_IGNORING;
+	} else {
+		switch (instr) {
+			case OP_NOOP: // no-op
+				break;
+			case OP_NEXT_FRAME: // next frame
+				if (rom_next(game)) return STATUS_END_OF_ROM;
+				return STATUS_NEXT_FRAME;
+			case OP_COPY_REGISTER_TO_MEMORY: // copy byte from register to memory
+			case OP_COPY_MEMORY_TO_REGISTER: // copy byte from memory to register
+			case OP_SET_REGISTER: // set register to byte
+			case OP_SET_MEMORY: // set at memory address to byte
+				if (instr == OP_COPY_REGISTER_TO_MEMORY || instr == OP_COPY_MEMORY_TO_REGISTER || instr == OP_SET_REGISTER) {
+					if (rom_next(game)) return STATUS_END_OF_ROM;
+					reg1 = get_register(game, rom_get(game));
+				}
+				if (instr == OP_COPY_REGISTER_TO_MEMORY || instr == OP_COPY_MEMORY_TO_REGISTER || instr == OP_SET_MEMORY) {
+					if (rom_next(game)) return STATUS_END_OF_ROM;
+					mem = ((uint16_t)rom_get(game)) << 8;
+					if (rom_next(game)) return STATUS_END_OF_ROM;
+					mem |= rom_get(game);
+				}
+				if (instr == OP_SET_REGISTER || instr == OP_SET_MEMORY) {
+					if (rom_next(game)) return STATUS_END_OF_ROM;
+					byte = rom_get(game);
+				}
+				if (mem >= MEMORY_SIZE)
+					return STATUS_MEMORY_OUT_OF_BOUNDS;
+				if (instr == OP_COPY_REGISTER_TO_MEMORY) game->memory[mem] = *reg1;
+				if (instr == OP_COPY_MEMORY_TO_REGISTER) *reg1 = game->memory[mem];
+				if (instr == OP_SET_REGISTER) *reg1 = byte;
+				if (instr == OP_SET_MEMORY) game->memory[mem] = byte;
+				break;
+			case OP_ADDITION: // addition
+			case OP_SUBTRACTION: // subtraction
+			case OP_MULTIPLICATION: // multiplication
+			case OP_DIVISION: // division
+			case OP_MODULO: // modulo
+			case OP_BIT_XOR: // bit XOR
+			case OP_BIT_AND: // bit AND
+			case OP_BIT_OR: // bit OR
+			case OP_BIT_XNOR: // bit XNOR
+			case OP_BIT_NAND: // bit NAND
+			case OP_BIT_NOR: // bit NOR
+				if (rom_next(game)) return STATUS_END_OF_ROM;
+				reg1 = get_register(game, rom_get(game));
+				if (rom_next(game)) return STATUS_END_OF_ROM;
+				reg2 = get_register(game, rom_get(game));
+				if (rom_next(game)) return STATUS_END_OF_ROM;
+				reg3 = get_register(game, rom_get(game));
+				if (instr == OP_ADDITION) *reg3 =   *reg1 + *reg2;
+				if (instr == OP_SUBTRACTION) *reg3 =   *reg1 - *reg2;
+				if (instr == OP_MULTIPLICATION) *reg3 =   *reg1 * *reg2;
+				if (instr == OP_DIVISION) *reg3 =   *reg1 / *reg2;
+				if (instr == OP_MODULO) *reg3 =   *reg1 % *reg2;
+				if (instr == OP_BIT_XOR) *reg3 =   *reg1 ^ *reg2;
+				if (instr == OP_BIT_AND) *reg3 =   *reg1 & *reg2;
+				if (instr == OP_BIT_OR) *reg3 =   *reg1 | *reg2;
+				if (instr == OP_BIT_XNOR) *reg3 = ~(*reg1 ^ *reg2);
+				if (instr == OP_BIT_NAND) *reg3 = ~(*reg1 | *reg2);
+				if (instr == OP_BIT_NOR) *reg3 = ~(*reg1 & *reg2);
+				break;
+			case OP_BIT_NOT: // bit NOT
+				if (rom_next(game)) return STATUS_END_OF_ROM;
+				reg1 = get_register(game, rom_get(game));
+				if (rom_next(game)) return STATUS_END_OF_ROM;
+				reg2 = get_register(game, rom_get(game));
+				*reg2 = ~(*reg1);
+				break;
+			case OP_PUSH_STACK: // push stack
+				if (rom_next(game)) return STATUS_END_OF_ROM;
+				mem = ((uint16_t)rom_get(game)) << 8;
+				if (rom_next(game)) return STATUS_END_OF_ROM;
+				mem |= rom_get(game);
+				return STATUS_STACK_OUT_OF_BOUNDS;
+				break;
+			case OP_POP_STACK: // pop stack
+				return STATUS_STACK_OUT_OF_BOUNDS;
+				break;
+			case OP_IGNORE: // ignore instructions until next OP_UNIGNORE
+				break;
+			case OP_HALT: // halt
+				game->flags |= FLAG_HALT;
+				return STATUS_HALTED;
+			default:
+				game->flags |= FLAG_HALT;
+				return STATUS_INVALID_INSTRUCTION;
+		}
+	}
+	if (rom_next(game)) return STATUS_END_OF_ROM;
+	return STATUS_CONTINUE;
+}
+uint8_t frame(struct game *game) {
 	uint8_t r;
-	while ((r = step(g)) == 0);
+	while ((r = step(game)) == STATUS_CONTINUE);
 	return r;
 }
