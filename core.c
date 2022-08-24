@@ -1,12 +1,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include "./core.h"
-void reset_registers(struct game *game) {
-	for (uint8_t i = 0; i < REGISTERS_SIZE; ++i) game->registers[i] = 0;
-}
-uint8_t *get_register(struct game *game, uint8_t reg) {
-	return &(game->registers[reg & 7]);
-}
 struct game *new_game(uint8_t *rom, uint32_t rom_length) {
 	if (rom_length == 0) return NULL;
 	if (!rom) return NULL;
@@ -24,6 +18,12 @@ struct game *new_game(uint8_t *rom, uint32_t rom_length) {
 void dispose_game(struct game *game) {
 	if (!game) return;
 	free(game);
+}
+void reset_registers(struct game *game) {
+	for (uint8_t i = 0; i < REGISTERS_SIZE; ++i) game->registers[i] = 0;
+}
+uint8_t *get_register(struct game *game, uint8_t reg) {
+	return &(game->registers[reg & 7]);
 }
 uint8_t rom_jump_without_stack(struct game *game, uint32_t index) {
 	if (index >= game->rom_length) { game->flags |= FLAG_HALT; return 1; }
