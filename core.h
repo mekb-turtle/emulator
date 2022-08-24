@@ -34,6 +34,8 @@
 #define OP_BIT_NAND 0x24
 #define OP_BIT_NOR 0x25
 #define OP_BIT_NOT 0x26
+#define OP_BIT_SHIFT_LEFT 0x27
+#define OP_BIT_SHIFT_RIGHT 0x29
 #define OP_PUSH_STACK 0x30
 #define OP_POP_STACK 0x31
 #define OP_IGNORE 0xfe

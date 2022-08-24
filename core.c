@@ -90,34 +90,38 @@ uint8_t step(struct game *game) {
 				if (instr == OP_SET_REGISTER) *reg1 = byte;
 				if (instr == OP_SET_MEMORY) game->memory[mem] = byte;
 				break;
-			case OP_ADDITION: // addition
-			case OP_SUBTRACTION: // subtraction
-			case OP_MULTIPLICATION: // multiplication
-			case OP_DIVISION: // division
-			case OP_MODULO: // modulo
-			case OP_BIT_XOR: // bit XOR
-			case OP_BIT_AND: // bit AND
-			case OP_BIT_OR: // bit OR
-			case OP_BIT_XNOR: // bit XNOR
-			case OP_BIT_NAND: // bit NAND
-			case OP_BIT_NOR: // bit NOR
+			case OP_ADDITION:
+			case OP_SUBTRACTION:
+			case OP_MULTIPLICATION:
+			case OP_DIVISION:
+			case OP_MODULO:
+			case OP_BIT_XOR:
+			case OP_BIT_AND:
+			case OP_BIT_OR:
+			case OP_BIT_XNOR:
+			case OP_BIT_NAND:
+			case OP_BIT_NOR:
+			case OP_BIT_SHIFT_LEFT:
+			case OP_BIT_SHIFT_RIGHT:
 				if (rom_next(game)) return STATUS_END_OF_ROM;
 				reg1 = get_register(game, rom_get(game));
 				if (rom_next(game)) return STATUS_END_OF_ROM;
 				reg2 = get_register(game, rom_get(game));
 				if (rom_next(game)) return STATUS_END_OF_ROM;
 				reg3 = get_register(game, rom_get(game));
-				if (instr == OP_ADDITION) *reg3 =   *reg1 + *reg2;
-				if (instr == OP_SUBTRACTION) *reg3 =   *reg1 - *reg2;
-				if (instr == OP_MULTIPLICATION) *reg3 =   *reg1 * *reg2;
-				if (instr == OP_DIVISION) *reg3 =   *reg1 / *reg2;
-				if (instr == OP_MODULO) *reg3 =   *reg1 % *reg2;
-				if (instr == OP_BIT_XOR) *reg3 =   *reg1 ^ *reg2;
-				if (instr == OP_BIT_AND) *reg3 =   *reg1 & *reg2;
-				if (instr == OP_BIT_OR) *reg3 =   *reg1 | *reg2;
-				if (instr == OP_BIT_XNOR) *reg3 = ~(*reg1 ^ *reg2);
-				if (instr == OP_BIT_NAND) *reg3 = ~(*reg1 | *reg2);
-				if (instr == OP_BIT_NOR) *reg3 = ~(*reg1 & *reg2);
+				if (instr == OP_ADDITION)        *reg3 =   *reg1 +  *reg2;
+				if (instr == OP_SUBTRACTION)     *reg3 =   *reg1 -  *reg2;
+				if (instr == OP_MULTIPLICATION)  *reg3 =   *reg1 *  *reg2;
+				if (instr == OP_DIVISION)        *reg3 =   *reg1 /  *reg2;
+				if (instr == OP_MODULO)          *reg3 =   *reg1 %  *reg2;
+				if (instr == OP_BIT_XOR)         *reg3 =   *reg1 ^  *reg2;
+				if (instr == OP_BIT_AND)         *reg3 =   *reg1 &  *reg2;
+				if (instr == OP_BIT_OR)          *reg3 =   *reg1 |  *reg2;
+				if (instr == OP_BIT_XNOR)        *reg3 = ~(*reg1 ^  *reg2);
+				if (instr == OP_BIT_NAND)        *reg3 = ~(*reg1 |  *reg2);
+				if (instr == OP_BIT_NOR)         *reg3 = ~(*reg1 &  *reg2);
+				if (instr == OP_BIT_SHIFT_LEFT)  *reg3 =   *reg1 << *reg2;
+				if (instr == OP_BIT_SHIFT_RIGHT) *reg3 =   *reg1 >> *reg2;
 				break;
 			case OP_BIT_NOT: // bit NOT
 				if (rom_next(game)) return STATUS_END_OF_ROM;
