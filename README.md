@@ -25,29 +25,29 @@ Instruction cheat sheet, the "arguments" will read the next bytes and use those.
 - `0x05`, arguments: high byte mem, low byte mem, byte\
   set at memory address to byte
 - `0x10`, arguments: `a` register, `b` register, `c` register\
-  addition, `a + b = c`
+  addition, `c = a + b`
 - `0x11`, same\
-  subtraction, `a - b = c`
+  subtraction, `c = a - b`
 - `0x12`, same\
-  multiplication, `a * b = c`
+  multiplication, `c = a * b`
 - `0x13`, same\
-  division, `a / b = c`
+  division, `c = a / b`
 - `0x14`, same\
-  modulo, `a % b = c`
+  modulo, `c = a % b`
 - `0x20`, same\
-  bit XOR, `a ^ b = c`
+  bit XOR, `c = a ^ b`
 - `0x21`, same\
-  bit AND, `a & b = c`
+  bit AND, `c = a & b`
 - `0x22`, same\
-  bit OR, `a | b = c`
+  bit OR, `c = a | b`
 - `0x23`, same\
-  bit XNOR, `a ^ b = ~c`
+  bit XNOR, `c = ~(a ^ b)`
 - `0x24`, same\
-  bit NAND, `a & b = ~c`
+  bit NAND, `c = ~(a & b)`
 - `0x25`, same\
-  bit NOR, `a | b = ~c`
+  bit NOR, `c = ~(a | b)`
 - `0x26`, arguments: `a` register, `b` register\
-  bit NOT, `a = ~b`
+  bit NOT, `b = ~a`
 - `0x30`, arguments: high byte mem, low byte mem\
   push memory index to stack, add current memory index to stack, and jump to that memory
 - `0x31`, no arguments\
