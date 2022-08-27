@@ -59,10 +59,11 @@ int main(int argc, char *argv[]) {
 	size_t out_len;
 	char *error = NULL;
 	size_t line = 0;
+	size_t col = 0;
 	errno = 0;
-	if (!compile_to_rom(in, in_len, &out, &out_len, &error, &line)) {
+	if (!compile_to_rom(in, in_len, &out, &out_len, &error, &line, &col)) {
 		if (error) {
-			eprintf("Error: L%li: %s\n", line, error);
+			eprintf("Error: L%liC%li: %s\n", line, col, error);
 		} else {
 			eprintf("Error: %s\n", strerr);
 		}

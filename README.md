@@ -10,7 +10,7 @@ Advance frame with `frame(game)`, or one instruction with `step(game)`.
 
 A ROM for this literally just contains the raw bytes of the instructions/arguments.
 
-The compiler (which is really just a basic assembly language) will read word by word, words can be either instructions, numbers as hex (register 0-7 or memory address), or :labels. `//` for line comment, `/*` and `*/` for multi-line comment, `"` will start and end ignoring (embed a string, escape codes are supported)
+The compiler (which is really just a basic assembly language) will read word by word, words can be either instructions, numbers as hex (register 0-7 or memory address), or `:`labels. `//` for line comment, `/*` and `*/` for multi-line comment, `"` will start and end ignoring (embed a string, escape codes are supported)
 
 Instruction cheat sheet, the "arguments" will read the next bytes and use those.
 

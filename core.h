@@ -138,4 +138,4 @@ uint8_t rom_get(struct game *game);
 uint8_t step(struct game *game);
 uint8_t frame(struct game *game);
 
-uint8_t compile_to_rom(uint8_t *in, size_t in_len, uint8_t **out, size_t *out_len, char **error, size_t *line);
+uint8_t compile_to_rom(uint8_t *in, size_t in_len, uint8_t **out, size_t *out_len, char **error, size_t *line, size_t *col);

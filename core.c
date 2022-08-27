@@ -253,6 +253,7 @@ struct label *find_label(struct label *labels, size_t labels_len, uint8_t *label
 	}
 	return NULL;
 }
+// TODO: use a struct for this
 uint8_t add_word(uint8_t *word, uint8_t *word_len, uint8_t **rom, size_t *rom_real_len, size_t *rom_len,
 	struct label **label, size_t *label_len, struct label **label_ref, size_t *label_ref_len,
 	char **error, uint8_t **last_instruction, uint8_t *arg_count, uint8_t *can_go) {
@@ -266,7 +267,13 @@ uint8_t add_word(uint8_t *word, uint8_t *word_len, uint8_t **rom, size_t *rom_re
 			arg_type_4 = ARG_TYPE_NONE,
 			not_instr = 0,
 			instruction;
-		if (*can_go) *last_instruction = word;
+		if (*can_go) {
+			if (*last_instruction) free(*last_instruction);
+			size_t s = getsize(word) + 1;
+			*last_instruction = malloc(s);
+			if (!*last_instruction) return 1;
+			copydata(*last_instruction, word, s);
+		}
 		// i'm sorry for this spaghetti code
 		if (compare(*last_instruction, OPC_NOOP)) { arg_target_count = 0;
 			instruction = OP_NOOP; } else
@@ -410,26 +417,58 @@ uint8_t add_word(uint8_t *word, uint8_t *word_len, uint8_t **rom, size_t *rom_re
 						return 1;
 					}
 					if (add_label(label, label_len, word+1, *rom_len)) return 1;
-					printf("add label %s %li\n", word+1, *rom_len);
 				} else {
 					*error = malloc(100);
 					if (*error) { sprintf(*error, "Unknown word: %s", word); }
 					return 1;
 				}
 			} else {
-				printf("add instr %s %i\n", word, instruction);
-				add(instruction, rom, rom_real_len, rom_len);
+				if (add(instruction, rom, rom_real_len, rom_len)) return 1;
 			}
 		} else {
-			if (not_instr) {
-				if (word[0] == ':') {
-					*error = "Can't have a label here, was expecting an argument";
+			if (word[0] == ':') {
+				*error = "Can't have a label here, was expecting an argument";
+				return 1;
+			}
+			if (arg_type == ARG_TYPE_REGISTER) {
+				if (word[1] != '\0' || word[0] < '1' || word[0] > '7') {
+					*error = "Invalid register";
 					return 1;
 				}
+				if (add(word[0] - '0', rom, rom_real_len, rom_len)) return 1;
+			} else
+#define NUMERIC(x) ((x >= 'a' && x <= 'f') || (x >= 'A' && x <= 'F') || (x >= '0' && x <= '9'))
+#define TO_INT(x) ((x >= 'a' && x <= 'f') ? (x - 'a' + 0xA) : (x >= 'A' && x <= 'F') ? (x - 'A' + 0xA) : (x >= '0' && x <= '9') ? x - '0': 0)
+#define TO_INT2(x, y) ((TO_INT(x) << 010) | TO_INT(y))
+			if (arg_type == ARG_TYPE_BYTE) {
+				if (!(NUMERIC(word[0]) && NUMERIC(word[1]) && word[2] == '\0')) {
+					*error = "Expecting byte here";
+					return 1;
+				}
+				if (add(TO_INT2(word[0], word[1]), rom, rom_real_len, rom_len)) return 1;
+			} else
+			if (arg_type == ARG_TYPE_2_BYTE) {
+				if (!(NUMERIC(word[0]) && NUMERIC(word[1]) && NUMERIC(word[2]) && NUMERIC(word[3]) && word[4] == '\0')) {
+					*error = "Expecting 2 byte here";
+					return 1;
+				}
+				if (add(TO_INT2(word[0], word[1]), rom, rom_real_len, rom_len)) return 1;
+				if (add(TO_INT2(word[2], word[3]), rom, rom_real_len, rom_len)) return 1;
+			} else
+			if (arg_type == ARG_TYPE_LABEL) {
+				if (word[0] == '\0') {
+					*error = "Expecting a label here";
+					return 1;
+				}
+				if (add_label(label_ref, label_ref_len, word+1, *rom_len)) return 1;
+				if (add(0, rom, rom_real_len, rom_len)) return 1;
+				if (add(0, rom, rom_real_len, rom_len)) return 1;
+			} else if (*arg_count > arg_target_count) {
+				// how did we get here??????
+				*error = "This message should not appear";
+				return 1;
 			}
-			printf("test\n");
 		}
-		printf("%i %s\nARG: %i\n", *word_len, word, *arg_count);
 		*word_len = 0;
 		word[0] = '\0';
 		++*arg_count;
@@ -438,8 +477,9 @@ uint8_t add_word(uint8_t *word, uint8_t *word_len, uint8_t **rom, size_t *rom_re
 	}
 	return 0;
 }
-uint8_t compile_to_rom(uint8_t *in, size_t in_len, uint8_t **out, size_t *out_len, char **error, size_t *line) {
+uint8_t compile_to_rom(uint8_t *in, size_t in_len, uint8_t **out, size_t *out_len, char **error, size_t *line, size_t *col) {
 	*line = 1;
+	*col = 0;
 	uint8_t *word = malloc(32);
 	if (!word) return 0;
 	uint8_t word_len = 0;
@@ -465,7 +505,7 @@ uint8_t compile_to_rom(uint8_t *in, size_t in_len, uint8_t **out, size_t *out_le
 		&label, &label_len, &label_ref, &label_ref_len, error,\
 		&last_instruction, &arg_count, &can_go)) ERR() }
 	for (size_t i = 0; i < in_len; ++i) {
-		if (in[i] == '\n') ++*line;
+		if (i > 0 && in[i-1] == '\n') { *col = 0; ++*line; } else { ++*col; }
 		if (!is_string_escape && is_string && in[i] == '"') { ADD(OP_UNIGNORE); is_string  = 0; continue; }
 		if ((in[i] == '\n' || in[i] == '\r') && is_comment_line)    { is_comment_line      = 0; continue; }
 		if (is_comment_multiline && in[i-1] == '*' && in[i] == '/') { is_comment_multiline = 0; continue; }
