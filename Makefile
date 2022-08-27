@@ -1,20 +1,27 @@
 CC=cc
 CFLAGS=-Wall -O2
 LFLAGS=-lm -s
+LFLAGS_FRONTEND=
+LFLAGS_COMPILER=
 
-OBJS=frontend.o core.o
+OBJS_CORE=core.o
+OBJS_FRONTEND=$(OBJS_CORE) frontend.o
+OBJS_COMPILER=$(OBJS_CORE) compiler.o
 
-TARGET=emulator
+TARGET_FRONTEND=emulator
+TARGET_COMPILER=compiler
 
 .PHONY: all clean
 
-all: $(TARGET)
+all: $(TARGET_FRONTEND) $(TARGET_COMPILER)
 
-$(TARGET): $(OBJS)
-	$(CC) -o $@ $^ $(LFLAGS)
+$(TARGET_FRONTEND): $(OBJS_FRONTEND)
+	$(CC) -o $@ $^ $(LFLAGS) $(LFLAGS_FRONTEND)
+$(TARGET_COMPILER): $(OBJS_COMPILER)
+	$(CC) -o $@ $^ $(LFLAGS) $(LFLAGS_COMPILER)
 
 %.o: %.c
 	$(CC) -c $(CFLAGS) -o $@ $<
 
 clean:
-	rm -fv -- $(OBJS) $(TARGET)
+	rm -fv -- $(OBJS_CORE) $(OBJS_FRONTEND) $(OBJS_COMPILER) $(TARGET_FRONTEND) $(TARGET_COMPILER)

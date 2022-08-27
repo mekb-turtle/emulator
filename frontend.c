@@ -1,6 +1,5 @@
 #include <stdio.h>
 #include <stdlib.h>
-#include <stdbool.h>
 #include <stdint.h>
 #include <errno.h>
 #include <string.h>
@@ -16,7 +15,7 @@ Usage: %s [rom]\n", argv0);
 }
 int main(int argc, char *argv[]) {
 #define INVALID { return usage(argv[0]); }
-	bool flag_done = 0;
+	uint8_t flag_done = 0;
 	char *rom_filename = NULL;
 	for (int i = 1; i < argc; ++i) {
 		if (argv[i][0] == '-' && argv[i][1] != '\0' && !flag_done) {
@@ -32,10 +31,10 @@ int main(int argc, char *argv[]) {
 	if (rom_filename[0] == '-' && rom_filename[1] == '\0') {
 		rom_f = stdin;
 	} else {
-		rom_f = fopen(rom_filename, "r");
+		rom_f = fopen(rom_filename, "rb");
 		if (!rom_f) { eprintf("fopen: %s: %s\n", rom_filename, strerr); return errno; }
 	}
-	uint8_t* rom = NULL;
+	uint8_t *rom = NULL;
 	size_t len = 0;
 	while (1) {
 		if (feof(rom_f)) break;
