@@ -216,6 +216,8 @@ uint8_t add(uint8_t byte, uint8_t **rom, size_t *rom_real_len, size_t *rom_len) 
 struct label {
 	uint8_t *name;
 	size_t index;
+	size_t line;
+	size_t col;
 };
 size_t getsize(uint8_t *str) {
 	uint8_t *l = str;
@@ -236,7 +238,7 @@ uint8_t compare(uint8_t *str1, uint8_t *str2) {
 	}
 	return 1;
 }
-uint8_t add_label(struct label **labels, size_t *labels_len, uint8_t *name, size_t index) {
+uint8_t add_label(struct label **labels, size_t *labels_len, uint8_t *name, size_t index, size_t line, size_t col) {
 	*labels = realloc(*labels, ((*labels_len)+1)*sizeof(struct label));
 	if (!*labels) return 1;
 	++*labels_len;
@@ -244,7 +246,7 @@ uint8_t add_label(struct label **labels, size_t *labels_len, uint8_t *name, size
 	uint8_t *label_name = malloc(label_size);
 	if (!label_name) return 1;
 	copydata(label_name, name, label_size);
-	(*labels)[(*labels_len)-1] = (struct label) { .name = label_name, .index = index };
+	(*labels)[(*labels_len)-1] = (struct label) { .name = label_name, .index = index, .line = line, .col = col };
 	return 0;
 }
 struct label *find_label(struct label *labels, size_t labels_len, uint8_t *label_name) {
@@ -253,10 +255,11 @@ struct label *find_label(struct label *labels, size_t labels_len, uint8_t *label
 	}
 	return NULL;
 }
-// TODO: use a struct for this
+// TODO: use a struct for this instead of having 15 arguments lmao
 uint8_t add_word(uint8_t *word, uint8_t *word_len, uint8_t **rom, size_t *rom_real_len, size_t *rom_len,
 	struct label **label, size_t *label_len, struct label **label_ref, size_t *label_ref_len,
-	char **error, uint8_t **last_instruction, uint8_t *arg_count, uint8_t *can_go) {
+	char **error, uint8_t **last_instruction, uint8_t *arg_count, uint8_t *can_go,
+	size_t line, size_t col) {
 	word[*word_len] = '\0';
 	if (*word_len > 0) {
 		uint8_t
@@ -416,7 +419,7 @@ uint8_t add_word(uint8_t *word, uint8_t *word_len, uint8_t **rom, size_t *rom_re
 						if (*error) { sprintf(*error, "Label already exists: %s", word+1); }
 						return 1;
 					}
-					if (add_label(label, label_len, word+1, *rom_len)) return 1;
+					if (add_label(label, label_len, word+1, *rom_len, line, col)) return 1;
 				} else {
 					*error = malloc(100);
 					if (*error) { sprintf(*error, "Unknown word: %s", word); }
@@ -460,7 +463,7 @@ uint8_t add_word(uint8_t *word, uint8_t *word_len, uint8_t **rom, size_t *rom_re
 					*error = "Expecting a label here";
 					return 1;
 				}
-				if (add_label(label_ref, label_ref_len, word+1, *rom_len)) return 1;
+				if (add_label(label_ref, label_ref_len, word, *rom_len, line, col)) return 1;
 				if (add(0, rom, rom_real_len, rom_len)) return 1;
 				if (add(0, rom, rom_real_len, rom_len)) return 1;
 			} else if (*arg_count > arg_target_count) {
@@ -503,14 +506,49 @@ uint8_t compile_to_rom(uint8_t *in, size_t in_len, uint8_t **out, size_t *out_le
 #define ADD_WORD() { for (uint8_t i = 0; i < word_len; ++i) { if (word[i] == '/') INVALID_CHAR('/') } \
 	if (add_word(word, &word_len, &rom, &rom_real_len, &rom_len,\
 		&label, &label_len, &label_ref, &label_ref_len, error,\
-		&last_instruction, &arg_count, &can_go)) ERR() }
+		&last_instruction, &arg_count, &can_go, *line, *col)) ERR() }
 	for (size_t i = 0; i < in_len; ++i) {
+		if (is_string_escape) {
+			is_string_escape = 0;
+			switch (in[i]) {
+				case 'a':  ADD('\x07'); break;
+				case 'b':  ADD('\x08'); break;
+				case 'e':  ADD('\x1b'); break;
+				case 'f':  ADD('\x0c'); break;
+				case 'n':  ADD('\x0a'); break;
+				case 'r':  ADD('\x0d'); break;
+				case 't':  ADD('\x09'); break;
+				case 'v':  ADD('\x0b'); break;
+				default:
+					if (in[i] == 'x') {
+						if (i + 2 < in_len && NUMERIC(in[i+1]) && NUMERIC(in[i+2])) {
+							ADD(TO_INT2(in[i+1], in[i+2]));
+							i += 2;
+							continue;
+							is_string_escape = 1;
+						} else {
+							*error = "Invalid escape code";
+							ERR();
+						}
+					} else {
+						ADD(in[i]);
+					}
+					break;
+			}
+		}
 		if (i > 0 && in[i-1] == '\n') { *col = 0; ++*line; } else { ++*col; }
 		if (!is_string_escape && is_string && in[i] == '"') { ADD(OP_UNIGNORE); is_string  = 0; continue; }
 		if ((in[i] == '\n' || in[i] == '\r') && is_comment_line)    { is_comment_line      = 0; continue; }
 		if (is_comment_multiline && in[i-1] == '*' && in[i] == '/') { is_comment_multiline = 0; continue; }
 		if (is_comment_line || is_comment_multiline) continue;
-		if (is_string) { ADD(in[i]); continue; }
+		if (is_string) {
+			if (in[i] == '\\') {
+				is_string_escape = 1;
+			} else {
+				ADD(in[i]);
+			}
+			continue;
+		}
 		if (in[i-1] == '/') {
 			if (in[i] == '*') { word[--word_len] = '\0'; ADD_WORD(); is_comment_multiline = 1; continue; }
 			if (in[i] == '/') { word[--word_len] = '\0'; ADD_WORD(); is_comment_line      = 1; continue; }
@@ -538,6 +576,19 @@ uint8_t compile_to_rom(uint8_t *in, size_t in_len, uint8_t **out, size_t *out_le
 		}
 	}
 	ADD_WORD();
+	for (size_t i = 0; i < label_ref_len; ++i) {
+		struct label *l = find_label(label, label_len, label_ref[i].name);
+		if (!l) {
+			*error = malloc(100);
+			*line = label_ref[i].line;
+			*col  = label_ref[i].col;
+			if (*error) { sprintf(*error, "Can't find label: %s", label_ref[i].name); }
+			ERR();
+		} else {
+			rom[(label_ref[i].index)+0] = (l->index & 0xff00) >> 010;
+			rom[(label_ref[i].index)+1] = (l->index & 0x00ff) >> 000;
+		}
+	}
 	*out = rom;
 	*out_len = rom_len;
 	free(word);
