@@ -1,3 +1,4 @@
 emulator
+compiler
 *.o
 *.swp
